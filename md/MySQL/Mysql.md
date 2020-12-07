@@ -299,6 +299,7 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
   序号大的先执行，序号相同的顺序执行
 			  
 			
+	
 - select_type
 		
   查询的类型
@@ -328,7 +329,7 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 			- Union result
 		
 	  从union表获取结果的select
-		
+	
 - table
 		- type
 
@@ -338,60 +339,60 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 			- system
 		
 	  表只有一行记录，是const 类型特例
-			  
+	
 - const
 			
 		  表示通过一次索引就能找到，const用于primary key或者unique索引
 	
 		- equ_ref
-	
+		
 		  唯一性索引扫描，对于每个索引键，表中只有一条记录与之匹配，常见于主键或唯一索引扫描
-	
+		
 		- ref
-	
+		
 		  非唯一性索引扫描，返回匹配某个单独值的所有行，本质上也是一种索引访问，它返回所有匹配某个单独值的行
-	
+		
 		- range
-	
+		
 		  只检索给定范围的行，使用一个索引来选择行。key列显示使用列哪个索引，一般在where子句中出现 between、> 、<、 in等的查询。
 	  这种范围扫描索引的扫描方式比全表扫描好，因为它只需要开始于索引的某一个点，而结束于某一个点，而不用扫描全部索引
-			
+	
 - index
 			
 		  全索引扫描
 	
 		- all
-	
+		
 		  全表扫描
-	
+		
 		- possible_keys
-
+	
 		  显示可能应用在这张表的索引，一个或多个。
   查询涉及到的字段上若存在索引，则该索引将被列出，但不一定被使用到
-		
+	
 - key
 		
 		  实际使用的索引。
   若查询中使用列覆盖索引，则该索引仅出现在key列表中
-		
+	
 - key_len
 		
 		  索引中使用的字节数，可通过该列计算查询中使用的索引长度。在不损失精确性的情况下，长度越短越好。
   
 		  key_len显示的值为索引字段的最大可能长度，并非实际使用长度，即key_len是表定义计算而得，不是通过表内检索出
-
+	
 		- ref
 		
 		  显示索引的哪一列被使用，如果可能的话，是一个常数const
-
+	
 		- rows
-
+	
 		  根据表统计信息即索引选用情况，大致估算出找到记录所需要读取的行数
-
+	
 		- Extra
-
+	
 			- Using filesort
-
+	
 			  表示mysql会对数据使用一个外部的索引排序，而不是按照表内的索引顺序进行读取。
 	  mysql无法利用索引完成的排序操作称为文件排序。
 			  出现该情况时表示查询性能已经很差
@@ -411,7 +412,8 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 			- using join buffer
 			- impossible where
 			
-  如  where name='jim' and name ='jack'
+  
+	如  where name='jim' and name ='jack'
 			
 		- select table optimized away
 			- distinct
@@ -634,21 +636,21 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 	      `id` int(32) NOT NULL AUTO_INCREMENT,
 
 	    	empno MEDIUMINT UNSIGNED not null default 0,
-    	
+    		
 	    	deptno MEDIUMINT UNSIGNED not null default 0,
-    	
+    		
 	    	mgr MEDIUMINT UNSIGNED not null default 0,
-    	
+    		
 	    	ename varchar(20) not null default '',
-    	
+    		
 	    	job varchar(20) not null default '',
-    	
+    		
 	    	hiredate date ,
-    	
+    		
 	    	sal DECIMAL(7,2) default 0,
-    	
+    		
 	    	comm DECIMAL(7,2) default 0,
-    	
+    		
 	    	create_time datetime(3) ,
 
 	
@@ -665,12 +667,12 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
     	pwd VARCHAR(20) DEFAULT '123456',
 	
 
-	    ​	
-
+	    	
+    
 	      PRIMARY KEY (`id`) USING BTREE
-
+    
 	    ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8 
-
+    
 	    COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
 
 	  - 订单表
@@ -682,7 +684,7 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 	      `id` int(32) NOT NULL AUTO_INCREMENT,
 
 	    	pay_status int not null default 0,
-  	
+  		
 	    	trade_status int not null default 0,
 
 	      order_no VARCHAR(30) not null default '',
@@ -721,8 +723,9 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 	  
 	  show variables like '%log_bin_trust_function_creators%'
 	  
-  set global log_bin_trust_function_creators=1;
-	  
+  
+	set global log_bin_trust_function_creators=1;
+	
 - 创建函数
 	
 	- 随机字符串函数
@@ -730,7 +733,7 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 		  delimiter $$
 		  create function rand_string(n int) returns varchar(255)
 		  begin
-		  
+		
 		     declare chars_str varchar(100) default 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 		     declare return_str varchar(255) default '';
 		     declare i int default 0;
@@ -788,7 +791,7 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 	     while i < length do 
 	
 	         set return_str = concat(return_str, substring(chars_str,floor(1+rand()*10),1));
-	    
+	        
 	         set i = i +1;
 	
 	     end while;
@@ -934,7 +937,7 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
        end repeat;
 	
        commit;
-	    
+	  
     end $$
 	
 	- 执行存储过程
@@ -1108,17 +1111,17 @@ A JOIN B：
 			  CREATE TABLE IF NOT EXISTS `article`(
 
 			  	`id` INT(10) UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
-	
+		
 			  	`author_id` INT(10) UNSIGNED NOT NULL,
-	
+		
 			  	`category_id` INT(10) UNSIGNED NOT NULL,
-	
+		
 			  	`views` INT(10) UNSIGNED NOT NULL,#文章被查看的次数
-	
+		
 			  	`comments` INT(10) UNSIGNED NOT NULL,#回复数
-	
+		
 			  	`title` VARBINARY(255) NOT NULL,
-	
+		
 			  	`content` TEXT NOT NULL
 
 			  );
