@@ -293,7 +293,7 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 			- id 不同
 
 			  如果是子查询，ID的序号会递增，ID值越大优先级越高，越先被执行
-			  
+	
 - ID相同又不同
 			
   序号大的先执行，序号相同的顺序执行
@@ -366,7 +366,7 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 		  全表扫描
 		
 		- possible_keys
-	
+		
 		  显示可能应用在这张表的索引，一个或多个。
   查询涉及到的字段上若存在索引，则该索引将被列出，但不一定被使用到
 	
@@ -380,19 +380,19 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 		  索引中使用的字节数，可通过该列计算查询中使用的索引长度。在不损失精确性的情况下，长度越短越好。
   
 		  key_len显示的值为索引字段的最大可能长度，并非实际使用长度，即key_len是表定义计算而得，不是通过表内检索出
-	
+		
 		- ref
 		
 		  显示索引的哪一列被使用，如果可能的话，是一个常数const
-	
+		
 		- rows
-	
+		
 		  根据表统计信息即索引选用情况，大致估算出找到记录所需要读取的行数
-	
+		
 		- Extra
-	
+		
 			- Using filesort
-	
+		
 			  表示mysql会对数据使用一个外部的索引排序，而不是按照表内的索引顺序进行读取。
 	  mysql无法利用索引完成的排序操作称为文件排序。
 			  出现该情况时表示查询性能已经很差
@@ -412,7 +412,8 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
 			- using join buffer
 			- impossible where
 			
-  
+    
+	
 	如  where name='jim' and name ='jack'
 			
 		- select table optimized away
@@ -667,12 +668,12 @@ MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
     	pwd VARCHAR(20) DEFAULT '123456',
 	
 
-	    	
-    
+	​    	
+  
 	      PRIMARY KEY (`id`) USING BTREE
-    
+        
 	    ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8 
-    
+        
 	    COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
 
 	  - 订单表
@@ -1111,17 +1112,17 @@ A JOIN B：
 			  CREATE TABLE IF NOT EXISTS `article`(
 
 			  	`id` INT(10) UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
-		
+			
 			  	`author_id` INT(10) UNSIGNED NOT NULL,
-		
+			
 			  	`category_id` INT(10) UNSIGNED NOT NULL,
-		
+			
 			  	`views` INT(10) UNSIGNED NOT NULL,#文章被查看的次数
-		
+			
 			  	`comments` INT(10) UNSIGNED NOT NULL,#回复数
-		
+			
 			  	`title` VARBINARY(255) NOT NULL,
-		
+			
 			  	`content` TEXT NOT NULL
 
 			  );
