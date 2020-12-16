@@ -61,6 +61,10 @@ JVM 内存区域主要分为线程私有区域【程序计数器、虚拟机栈�
 
 <img src="https://gitee.com/adambang/pic/raw/master/image-20201214202919021.png" alt="image-20201214202919021" style="zoom: 60%;" />
 
+综合以上内容，类中方法执行的过程如下：
+
+![image-20201216104916755](https://gitee.com/adambang/pic/raw/master/20201216104916.png)
+
 ## 1.程序计数器（线程私有）
 
  程序计数器（Program Counter Register），也有称作为PC寄存器。保存的是程序当前执行的指令的地址（也可以说保存下一条指令的所在存储单元的地址），当CPU需要执行指令时，需要从程序计数器中得到当前需要执行的指令所在存储单元的地址，然后根据得到的地址获取到指令，在得到指令之后，程序计数器便自动加 1 或者根据转移指针得 到下一条指令的地址，如此循环，直至执行完所有的指令。也就是说是用来指示执行哪条指令的。
@@ -119,6 +123,22 @@ JVM 内存区域主要分为线程私有区域【程序计数器、虚拟机栈�
 
 1. 方法区调用递归，内存会溢出，报 OutOfMemoryError； 
 2. .当常量池无法再申请到内存时 OutOfMemoryError
+
+
+
+**方法区的回收：**
+
+方法区（Hotspot虚拟机中的永久代）的垃圾回收主要收集两部分的内容：**废弃常量**和**无用的类**。
+
+废弃常量的回收
+
+以常量池中字面量的回收为例，假如一个字符串“abc”已经进入常量池中，但是当前系统没有任何一个string对象叫作“abc”，即没有任何string对象引用常量池中的“abc”常量，也没有其他地方引用这个字面量。如果这时候发生内存回收，且有必要的话，这个“abc”常量就会被系统清理出常量池。常量池中的类（接口），方法，字段的符号引用回收也类似。
+
+类的回收
+
+1. 首先该类的所有实例对象都已经从Java堆内存里被回收
+2. 其次加载这个类的ClassLoader已经被回收
+3. 最后，对该类的Class对象没有任何引用  
 
 # JVM垃圾回收机制
 
@@ -192,6 +212,16 @@ Mark-Compact
 
   <img src="https://gitee.com/adambang/pic/raw/master/b1e72c2c8555495c994bd7bbcfdac4c0~tplv-k3u1fbpfcp-zoom-1.image" alt="img" style="zoom: 50%;" />
 
+## ParNew  
+
+G1回收器之前，线上系统都是ParNew垃圾回收器作为新生代的垃圾回收器。  
+
+新生代的ParNew垃圾回收器主打的就是**多线程垃圾回收机制**，另外一种Serial垃圾回收器主打的是单线程垃圾回收，二者都是回收新生代的，唯一的区别就是单线程和多线程的区别，但是垃圾回收算法是完全一样的。  
+
+指定了使用ParNew垃圾回收器之后，默认设置的垃圾回收线程的数量跟CPU的核数是一样的。  
+
+![image-20201216102423971](C:\Users\zhaozhixiang\AppData\Roaming\Typora\typora-user-images\image-20201216102423971.png)
+
 ## CMS
 
 CMS是老年代垃圾收集器，基于**标记-清除**算法,在收集过程中可以与用户线程并发操作。它可以与Serial收集器和Parallel New收集器搭配使用。CMS牺牲了系统的吞吐量来追求收集速度，适合追求垃圾收集速度的服务器上。可以通过JVM启动参数：`-XX:+UseConcMarkSweepGC`来开启CMS。
@@ -261,3 +291,67 @@ G1 收集器避免全区域垃圾收集，它把堆内存划分为大小固定�
   更新Region的统计数据，对每个Region的回收价值和成本排序，根据用户设置的停顿时间制定回收计划。再把需要回收的Region中存活对象复制到空的Region，同时清理旧的Region。需要STW。
 
 <u>总的来说除了并发标记之外，其他几个过程也还是需要短暂的STW，G1的目标是在停顿和延迟可控的情况下尽可能提高吞吐量。</u>
+
+## 总结
+
+- 如果你的堆大小不是很大（比如 100MB），选择串行收集器一般是效率最高的。参数：-XX:+UseSerialGC。
+
+- 如果你的应用运行在单核的机器上，或者你的虚拟机核数只有 1C，选择串行收集器依然是合适的，这时候启用一些并行收集器没有任何收益。参数：-XX:+UseSerialGC。
+
+- 如果你的应用是“吞吐量”优先的，并且对较长时间的停顿没有什么特别的要求。选择并行收集器是比较好的。参数：-XX:+UseParallelGC。
+
+- 如果你的应用对响应时间要求较高，想要较少的停顿。甚至 1 秒的停顿都会引起大量的请求失败，那么选择 G1、ZGC、CMS 都是合理的。虽然这些收集器的 GC 停顿通常都比较短，但它需要一些额外的资源去处理这些工作，通常吞吐量会低一些。参数：-XX:+UseConcMarkSweepGC、-XX:+UseG1GC、-XX:+UseZGC 等。
+
+# GC调优
+
+## GC的时机
+
+当一个新的对象来申请内存空间的时候，如果Eden区无法满足内存分配需求，则触发YGC，使用中的Survivor区和Eden区存活对象送到未使用的Survivor区，如果YGC之后还是没有足够空间，则直接进入老年代分配，如果老年代也无法分配空间，触发FGC，FGC之后还是放不下则报出OOM异常。
+
+<img src="https://gitee.com/adambang/pic/raw/master/20201216092823.jpeg" alt="img" style="zoom: 43%;" />
+
+Young GC其实一般就是在新生代的Eden区域不够之后就会触发，采用标记-复制算法来回收新生代的垃圾  
+
+**对象进入老年代：**
+
+1. 如果对象够老，会通过“提升”进入老年代。
+
+   > 对于那些一直在Survivor区来回复制的对象，通过-XX：MaxTenuringThreshold配置交换阈值，默认15次，如果超过次数同样进入老年代。
+
+2. 当 Survivor 空间不够，就需要依赖老年代进行分配担保。
+
+3. 大对象直接在老年代分配
+
+4. 动态年龄的判断机制。
+
+   > 不需要等到MaxTenuringThreshold就能晋升老年代。如果在Survivor空间中相同年龄所有对象大小的总和大于Survivor空间的一半，年龄大于或等于该年龄的对象就可以直接进入老年代。
+
+## 调优
+
+### 核心参数
+
+-Xms：Java堆内存的大小
+-Xmx：Java堆内存的最大大小
+-Xmn：Java堆内存中的新生代大小，扣除新生代剩下的就是老年代的内存大小了
+-XX:PermSize：方法区大小
+-XX:MaxPermSize：方法区最大大小
+-Xss：每个线程的栈内存大小  
+
+### 日志输出
+
+| 参数                          | 意义                                                       |
+| ----------------------------- | ---------------------------------------------------------- |
+| -verbose:gc                   | 打印 GC 日志                                               |
+| PrintGCDetails                | 打印详细 GC 日志                                           |
+| PrintGCDateStamps             | 系统时间，更加可读，PrintGCTimeStamps 是 JVM 启动时间      |
+| PrintGCApplicationStoppedTime | 打印 STW 时间                                              |
+| PrintTenuringDistribution     | 打印对象年龄分布，对调优 MaxTenuringThreshold 参数帮助很大 |
+| loggc                         | 将以上 GC 内容输出到文件中                                 |
+
+OOM 时的参数：
+
+| 参数                       | 意义                       |
+| -------------------------- | -------------------------- |
+| HeapDumpOnOutOfMemoryError | OOM 时 Dump 信息，非常有用 |
+| HeapDumpPath               | Dump 文件保存路径          |
+| ErrorFile                  | 错误日志存放路径           |
