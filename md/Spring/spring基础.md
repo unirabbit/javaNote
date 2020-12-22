@@ -20,7 +20,7 @@
 > Bean 并建立 Bean 之间的依赖关系。 Spring 的 IoC 容器在完成这些底层工作的基础上，还提供
 > 了 Bean 实例缓存、生命周期管理、 Bean 实例代理、事件发布、资源装载等高级服务。  
 
-### IoC 容器设计：
+**IoC 容器设计：**
 
 使用 `ApplicationContext`，它是 `BeanFactory` 的子类，更好的补充并实现了 `BeanFactory` 的功能。
 
@@ -38,10 +38,18 @@ Spring在创建一个Bean时是分为三个步骤的
 
 Bean的生命周期的过程，它大致分为
 
-- 实例化
-- 属性赋值
-- 初始化
-- 销毁
+1. 实例化，创建一个Bean对象
+2. 属性赋值，为属性赋值
+3. 初始化
+
+> - 如果实现了`xxxAware`接口，通过不同类型的Aware接口拿到Spring容器的资源
+> - 如果实现了BeanPostProcessor接口，则会回调该接口的`postProcessBeforeInitialzation`和`postProcessAfterInitialization`方法
+> - 如果配置了`init-method`方法，则会执行`init-method`配置的方法
+
+4. 销毁
+
+   > - 容器关闭后，如果Bean实现了`DisposableBean`接口，则会回调该接口的`destroy`方法
+   > - 如果配置了`destroy-method`方法，则会执行`destroy-method`配置的方法
 
 ![preview](https://gitee.com/adambang/pic/raw/master/20201106090645.jpeg)
 
