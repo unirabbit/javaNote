@@ -96,6 +96,8 @@ CGLib 全称为 Code Generation Library，是一个强大的高性能， 高质�
 
 # 6.Spring如何解决循环依赖的
 
+[烂大街的Spring循环依赖该如何回答？](https://app.yinxiang.com/shard/s35/nl/7513061/f8aad314-b7fc-4408-a013-5537c49990dc)
+
 Spring通过三级缓存解决了循环依赖，Spring是通过**「三级缓存」**来解决上述问题的：
 
 - `singletonObjects`：一级缓存 存储的是所有创建好了的单例Bean
