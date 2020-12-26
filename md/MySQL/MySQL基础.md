@@ -139,7 +139,7 @@ write pos和check point之间的是粉板上还空着的部分，可以用来记
 
 `redolog两阶段提交`：为了让binlog跟redolog两份日志之间的逻辑一致。提交流程大致如下：
 
-> 1 prepare阶段 -->  2 写binlog  --> 3 commit
+> 1 写入redolog,prepare阶段 -->  2 写binlog  --> 3 redolpg标记commit
 
 1. 当在2之前崩溃时，重启恢复后发现没有commit，回滚。备份恢复：没有binlog 。一致
 2. 当在3之前崩溃时，重启恢复发现虽没有commit，但满足prepare和binlog完整，所以重启后会`自动`commit。备份：有binlog一致
