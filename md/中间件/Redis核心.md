@@ -265,6 +265,10 @@ AOF 即 Append-only file：把所有对 Redis 服务器进行修改的命令保�
 
 AOF持久化功能的实现可以分为命令追加（append）、文件写入、文件同步（sync）三个步骤。
 
+> **AOF整个流程分两步**：第一步是命令的实时写入，不同级别可能有1秒数据损失。命令先追加到`aof_buf`然后再同步到AO磁盘，**如果实时写入磁盘会带来非常高的磁盘IO，影响整体性能**。
+>
+> 第二步是对aof文件的**重写**，目的是为了减少AOF文件的大小，可以自动触发或者手动触发(**BGREWRITEAOF**)，是Fork出子进程操作，期间Redis服务仍可用。
+
 AOF 是写后日志，“写后”的意思是 Redis 是先执行命令，把数据写入内存，然后才记录日志，如下图所示：
 
 <img src="https://static001.geekbang.org/resource/image/40/1f/407f2686083afc37351cfd9107319a1f.jpg" alt="img" style="zoom:16%;" />
