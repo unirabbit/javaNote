@@ -52,10 +52,26 @@ Message Queue：相当于是Topic的分区；用于并行发送和接收消息
 
 **NameServer**是一个几乎无状态节点，可集群部署（保证中心的高可用），节点之间无任何信息同步。
 
-**Broker**部署相对复杂，Broker分为Master与Slave，一个Master可以对应多个Slave，但是一个Slave只能对应一个Master，Master与Slave的对应关系通过指定相同的BrokerName，不同的BrokerId来定义，BrokerId为0表示Master，非0表示Slave。Master也可以部署多个。每个Broker与NameServer集群中的所有节点建立长连接，**定时注册Topic信息到所有NameServer（路由信息同步,心跳） **。
+**Broker**部署相对复杂，Broker分为Master与Slave，一个Master可以对应多个Slave，但是一个Slave只能对应一个Master，Master与Slave的对应关系通过指定相同的BrokerName，不同的BrokerId来定义，BrokerId为0表示Master，非0表示Slave。Master也可以部署多个。每个Broker与NameServer集群中的所有节点建立长连接，**定时注册Topic信息（TCP长连接）到所有NameServer（路由信息同步,心跳） **。
 
 **Producer**与NameServer集群中的其中一个节点（随机选择）建立长连接，**定期从NameServer取Topic路由信息**，并向提供Topic服务的Master建立长连接，且定时向Master发送心跳。Producer完全无状态，可集群部署。
 
 **Consumer**与NameServer集群中的其中一个节点（随机选择）建立长连接，**定期从NameServer取Topic路由信息**，并向提供Topic服务的Master、Slave建立长连接，且定时向Master、Slave发送心跳。Consumer既可以从Master订阅消息，也可以从Slave订阅消息，订阅规则由Broker配置决定。
 
 ![image-20210105105514602](C:\Users\zhaozhixiang\AppData\Roaming\Typora\typora-user-images\image-20210105105514602.png)
+
+## 1.4 集群搭建
+
+### 1.4.1 NameServer集群化部署  
+
+NameServer的设计是采用的Peer-to-Peer的模式来做的，也就是可以集群化部署，但是里面任何一台
+机器都是独立运行的，跟其他的机器没有任何通信。
+每台NameServer实际上都会有完整的集群路由信息，包括所有的Broker节点信息，我们的数据信息，等等。所以只要任何一台NameServer存活下来，就可以保证MQ系统正常运行，不会出现故障。  
+
+<img src="https://gitee.com/adambang/pic/raw/master/20210105165110.png" alt="image-20210105165110394" style="zoom: 80%;" />
+
+### 1.4.2  基于Dledger的Broker主从架构部署  
+
+Dledger技术（基于raft协议）是要求至少得是一个Master带两个Slave，这样有三个Broke组成一个Group，也就是作为一个分组来运行。一旦Master宕机，他就可以从剩余的两个Slave中选举出来一个新的Master对外提供服务 。
+
+<img src="https://gitee.com/adambang/pic/raw/master/20210105181527.png" alt="image-20210105181526925" style="zoom:67%;" />
