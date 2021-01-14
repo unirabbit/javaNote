@@ -151,3 +151,13 @@ Spring通过三级缓存解决了循环依赖，Spring是通过**「三级缓存
 > 第二步：调用对象工工厂的getObject方法来获取到对应的对象，得到这个对象后将其注入到B中。紧接着B会走完它的生命周期流程，包括初始化、后置处理器等。
 >
 > 第三步：当B创建完后，会将B再注入到A中，此时A再完成它的整个生命周期。至此，循环依赖结束！
+
+# 7.Springboot自动装配流程
+
+当我们的SpringBoot项目启动的时候，会先导入AutoConfigurationImportSelector，这个类会帮我们选择所有候选的配置，我们需要导入的配置都是SpringBoot帮我们写好的一个一个的配置类，那么这些配置类的位置，存在与META-INF/spring.factories文件中，通过这个文件，Spring可以找到这些配置类的位置，于是去加载其中的配置。ps.@ConditionalOnXXX:如果其中的条件都满足，该类才会生效。
+
+![img](https://gitee.com/adambang/pic/raw/master/20210114161638.jpeg)
+
+# 8.SpringBoot启动流程 
+
+![img](https://gitee.com/adambang/pic/raw/master/20210114164556.png)
