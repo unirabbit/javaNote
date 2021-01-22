@@ -76,9 +76,41 @@ Dledger技术（基于raft协议）是要求至少得是一个Master带两个Sla
 
 <img src="https://gitee.com/adambang/pic/raw/master/20210105181527.png" alt="image-20210105181526925" style="zoom:67%;" />
 
-# 二. Broker
+# 二.  Producer/Comsumer
 
-## 2.1 数据存储
+## 2.1 Producer 启动流程
+
+Producer启动时，需要指定Namesrv的地址，从Namesrv集群中选一台建立长连接。如果该Namesrv宕机，会自动连其他Namesrv。直到有可用的Namesrv为止。生产者每30秒从Namesrv获取Topic跟Broker的映射关系，更新到本地内存中。再跟Topic涉及的所有Broker建立长连接，每隔30秒发一次心跳。
+
+## 2.2 Producer发送流程
+
+消息发送流程主要的步骤：验证消息、查找路由、消息发送（包含异常处理机制）。
+
+**三种发送方式**
+
+- 同步：在广泛的场景中使用可靠的同步传输，如重要的通知信息、短信通知、短信营销系统等。
+- 异步：异步发送通常用于响应时间敏感的业务场景，发送出去即刻返回，利用回调做后续处理。
+- 一次性：一次性发送用于需要中等可靠性的情况，如日志收集，发送出去即完成，不用等待发送结果，回调等等。
+
+## 2.3 Comsumer消费流程
+
+RMQ利用“长轮询”来实现拉模式,client发送请求到server，server有数据返回，没有数据请求挂起不断开连接.
+
+消息消费有两种模式：广播模式与集群模式。
+
+广播模式比较简单，每一个消费者需要去拉取订阅主题下所有消费队列的消息。
+
+集群消费：一个topic可以由同一个ID下所有消费者分担消费。当使用集群消费模式时，消息队列 RocketMQ 认为任意一条消息只需要被集群内的任意一个消费者处理即可。
+
+## 2.3 负载均衡
+
+生产者发送时，会自动轮询当前所有可发送的broker，一条消息发送成功，下次换另外一个broker发送，以达到消息平均落到所有的broker上。
+
+在集群消费模式下（clustering）相同的group中的每个消费者只消费topic中的一部分内容，group中的所有消费者都参与消费过程，每个消费者消费的内容不重复，从而达到负载均衡的效果。
+
+# 三. Broker
+
+## 3.1 数据存储
 
 消息存储是RocketMQ中最为复杂和最为重要的一部分，决定了生产者消息写入的吞吐量，决定了消息不能丢失，决定了消费者获取消息的吞吐量。
 
@@ -86,29 +118,29 @@ RocketMQ消息的存储是由ConsumeQueue和CommitLog配合完成 的，消息�
 
 ![在这里插入图片描述](https://gitee.com/adambang/pic/raw/master/20210106103912.png)
 
-### 2.1.1 消息存储整体架构
+### 3.1.1 消息存储整体架构
 
 消息存储架构图中主要有下面三个跟消息存储相关的文件构成。
 
 1. CommitLog：消息主体以及元数据的存储主体，存储Producer端写入的消息主体内容,消息内容不是定长的。单个文件大小默认1G ，文件名长度为20位，左边补零，剩余为起始偏移量。消息主要是顺序写入日志文件，当文件满了，写入下一个文件；
-
 2. ConsumeQueue：消息消费队列，引入的目的主要是提高消息消费的性能，由于RocketMQ是基于主题topic的订阅模式，消息消费是针对主题进行的，如果要遍历commitlog文件中根据topic检索消息是非常低效的。Consumer即可根据ConsumeQueue来查找待消费的消息。其中，ConsumeQueue（逻辑消费队列）作为消费消息的索引，保存了指定Topic下的队列消息在CommitLog中的起始物理偏移量offset，消息大小size和消息Tag的HashCode值。consumequeue文件可以看成是基于topic的commitlog索引文件。
-
 3.  IndexFile：IndexFile（索引文件）提供了一种可以通过key或时间区间来查询消息的方法。Index文件的存储位置是：HOME\store\indexHOME\store\index{fileName}，文件名fileName是以创建时的时间戳命名的，固定的单个IndexFile文件大小约为400M，一个IndexFile可以保存 2000W个索引，IndexFile的底层存储设计为在文件系统中实现HashMap结构，故rocketmq的索引文件其底层实现为hash索引。
+
+> RocketMQ通过使用内存映射文件来提高IO访问性能，无论是CommitLog、ConsumeQueue还是IndexFile，单个文件都被设计为固定长度，如果一个文件写满以后再创建一个新文件，文件名就为该文件第一条消息对应的全局物理偏移量。
 
 ![image-20210106134657055](https://gitee.com/adambang/pic/raw/master/20210106134657.png)
 
-### 2.1.2  CommitLog写入性能
+### 3.1.2  CommitLog写入性能
 
 Broker是基于OS操作系统的**PageCache**和**顺序写**两个机制，来提升CommitLog写入性能的。
 
 首先Broker是以顺序的方式将消息写入CommitLog磁盘文件的，也就是每次写入在文件末位追加一条记录即可。对文件顺序写比随机写的性能要高很多。
 
-另外，数据写入CommitLog文件时，并未直接写入底层的物理磁盘文件，而是先进入OS操作系统的**Page Cache**内存缓存中，然后后续由OS的后台线程选一个时间，异步化的将OS PageCache内存缓冲中的数据刷入底层的磁盘文件（刷盘策略分为同步刷盘和异步刷盘，吞吐量与数据丢失风险的平衡）。
+另外，数据写入CommitLog文件时，并未直接写入底层的物理磁盘文件，而是先进入OS操作系统的**Page Cache**内存缓存中，然后后续由OS的后台线程选一个时间，异步化的将OS PageCache内存缓冲中的数据刷入底层的磁盘文件（**刷盘策略**分为同步刷盘和异步刷盘，吞吐量与数据丢失风险的平衡）。
 
 ![image-20210106140340334](https://gitee.com/adambang/pic/raw/master/20210106140340.png)
 
-## 2.2 主从同步
+## 3.2 主从同步
 
 如果要让Broker实现高可用，那么必须有一个Broker组，里面有一个是Leader Broker可以写入数据，然后让
 Leader Broker接收到数据之后，直接把数据同步给其他的Follower Broker 。
@@ -126,9 +158,9 @@ Leader Broker接收到数据之后，直接把数据同步给其他的Follower B
 > 2. 接着Follower Broker的DLedgerServer收到uncommitted消息之后，必须返回一个ack给Leader Broker的DLedgerServer，然后如果Leader Broker收到超过半数的Follower Broker返回ack之后，就会将消息标记为committed状态。
 > 3. 最后Leader Broker上的DLedgerServer就会发送commited消息给Follower Broker机器的DLedgerServer，让他们也把消息标记为comitted状态。  
 
-## 2.3 高性能读写优化
+## 3.3 高性能读写优化
 
-### 2.3.1 传统IO多次拷贝问题
+### 3.3.1 传统IO多次拷贝问题
 
 Linux操作系统分为【用户态】和【内核态】，文件操作、网络操作需要涉及这两种形态的切换，免不了进行数据复制。
 
@@ -147,7 +179,7 @@ Linux操作系统分为【用户态】和【内核态】，文件操作、网络
 
 ![文件操作和网络操作](https://gitee.com/adambang/pic/raw/master/%E6%96%87%E4%BB%B6%E6%93%8D%E4%BD%9C%E5%92%8C%E7%BD%91%E7%BB%9C%E6%93%8D%E4%BD%9C.png)
 
-### 2.3.2 mmap与PageCache
+### 3.3.2 mmap与PageCache
 
 mmap相当于将磁盘文件与虚拟内存地址（PageCache）建立一个映射关系，所以可以减少一次cpu的内存拷贝。
 
@@ -155,7 +187,7 @@ mmap相当于将磁盘文件与虚拟内存地址（PageCache）建立一个映�
 
 <img src="https://gitee.com/adambang/pic/raw/master/20210106162221.png" alt="image-20210106162221000" style="zoom:67%;" />
 
-### 2.3.3 零拷贝
+### 3.3.3 零拷贝
 
 RocketMQ读写过程中，使用了零拷贝，零拷贝包含以下两种方式
 
@@ -193,8 +225,8 @@ RocketMQ读写过程中，使用了零拷贝，零拷贝包含以下两种方式
 1. A服务先发送个Half Message给Brock端，消息中携带 B服务 即将要+100元的信息。
 2. 当A服务知道Half Message发送成功后，那么开始第3步执行本地事务。
 3. 执行本地事务(会有三种情况1、执行成功。2、执行失败。3、网络等原因导致没有响应)
-4. 如果本地事务成功，那么Product像Brock服务器发送Commit,这样B服务就可以消费该message。
-5. 如果本地事务失败，那么Product像Brock服务器发送Rollback,那么就会直接删除上面这条半消息。
+4. 如果本地事务成功，那么Product向Brock服务器发送Commit,这样B服务就可以消费该message。
+5. 如果本地事务失败，那么Product向Brock服务器发送Rollback,那么就会直接删除上面这条半消息。
 6. 如果因为网络等原因迟迟没有返回失败还是成功，那么会执行RocketMQ的回调接口,来进行事务的回查。
 
 ### 3.1.2 broker消息零丢失
