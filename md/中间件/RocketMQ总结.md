@@ -120,6 +120,8 @@ RocketMQ消息的存储是由ConsumeQueue和CommitLog配合完成 的，消息�
 
 ### 3.1.1 消息存储整体架构
 
+<img src="https://gitee.com/adambang/pic/raw/master/20210126185704.png" alt="image-20210126185704486" style="zoom: 67%;" />
+
 消息存储架构图中主要有下面三个跟消息存储相关的文件构成。
 
 1. CommitLog：消息主体以及元数据的存储主体，存储Producer端写入的消息主体内容,消息内容不是定长的。单个文件大小默认1G ，文件名长度为20位，左边补零，剩余为起始偏移量。消息主要是顺序写入日志文件，当文件满了，写入下一个文件；
@@ -201,7 +203,7 @@ RocketMQ读写过程中，使用了零拷贝，零拷贝包含以下两种方式
 
 # 三 常见问题
 
-## 3.1. 消息零丢失方案
+## 3.1 消息零丢失方案
 
 ### 3.1.1 producer零丢失方案
 
@@ -319,3 +321,4 @@ Consumer处理消息失败，可以给Broker返回RECONSUME_LATER状态。可以
 binlog消息全局有序性保证如下：
 
 <img src="https://gitee.com/adambang/pic/raw/master/20210108152948.png" alt="image-20210108152948432" style="zoom:80%;" />
+
