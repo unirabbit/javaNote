@@ -33,3 +33,89 @@ Kafka 中消息是以 topic 进行分类的，生产者生产消息，消费者�
 由于生产者生产的消息会不断追加到 log 文件末尾，为防止 log 文件过大导致数据定位 效率低下，Kafka 采取了分片和索引机制，将每个 partition 分为多个 segment。每个 segment 对应两个文件——“.index”文件和“.log”文件。这些文件位于一个文件夹下，该文件夹的命名 规则为：topic 名称+分区序号。
 
 ![image-20210125160532195](https://gitee.com/adambang/pic/raw/master/20210125160532.png)
+
+# 二.Kafka 生产者
+
+## 2.1 分区策略
+
+分区的原因 ：
+
+1. 便在集群中扩展，每个 Partition 可以通过调整以适应它所在的机器，而一个 topic
+   又可以有多个 Partition 组成，因此整个集群就可以适应任意大小的数据了； 
+2. 可以提高并发，因为可以 Partition 为单位读写了。
+
+分区的原则：
+
+需要将 producer 发送的数据封装成一个 ProducerRecord 对象。
+
+1. 指明 partition 的情况下，直接将指明的值直接作为 partiton 值； 
+2. 没有指明 partition 值但有 key 的情况下，将 key 的 hash 值与 topic 的 partition数进行取余得到 partition 值； 
+3. 既没有 partition 值又没有 key 值的情况下，第一次调用时随机生成一个整数（后面每次调用在这个整数上自增），将这个值与 topic 可用的 partition 总数取余得到 partition 值，也就是常说的 round-robin 算法。
+
+## 2.2 数据可靠性保证
+
+为保证 producer 发送的数据，能可靠的发送到指定的 topic，topic 的每个partition收到producer 发送的数据后，都需要向 producer 发送 ack（acknowledgement 确认收到），如果 producer 收到 ack，就会进行下一轮的发送，否则重新发送数据。
+
+![image-20210205170855939](https://gitee.com/adambang/pic/raw/master/20210205170856.png)
+
+### 2.2.1 副本数据同步策略：
+
+![image-20210205171350106](https://gitee.com/adambang/pic/raw/master/20210205171350.png)
+
+Kafka 选择了第二种方案，原因如下：
+
+1. 同样为了容忍 n 台节点的故障，第一种方案需要 2n+1 个副本，而第二种方案只需要 n+1 个副本，而Kafka 的每个分区都有大量的数据，第一种方案会造成大量数据的冗余。 
+2. 虽然第二种方案的网络延迟会比较高，但网络延迟对Kafka 的影响较小。
+
+### 2.2.2 ISR
+
+Leader 维护了一个动态的 in-sync replica set (ISR)，意为和 leader 保持同步的 follower 集合。当 ISR 中的 follower 完成数据的同步之后，leader 就会给 follower 发送 ack。如果 follower 长时间未向 leader 同步数据，则该 follower 将被踢出 ISR ，该时间阈值由replica.lag.time.max.ms 参数设定。Leader 发生故障之后，就会从 ISR中选举新的 leader。
+
+### 2.2.3 ack应答机制
+
+对于某些不太重要的数据，对数据的可靠性要求不是很高，能够容忍数据的少量丢失，所以没必要等 ISR中的 follower 全部接收成功。 所以 Kafka 为用户提供了三种可靠性级别，用户根据对可靠性和延迟的要求进行权衡，
+选择以下的acks配置：
+
+> 0：producer 不等待 broker 的 ack，这一操作提供了一个最低的延迟，broker 一接收到还没有写入磁盘就已经返回，当 broker 故障时有可能丢失数据；
+>
+> 1 At Most Once：producer 等待 broker 的 ack，partition 的 leader 落盘成功后返回 ack，如果在 follower 同步成功之前leader 故障，那么将会丢失数据；
+>
+> -1（all）At Least Once ：producer 等待 broker 的 ack，partition 的 leader 和 follower 全部落盘成功后才返回 ack。但是如果在 follower 同步完成后，broker 发送 ack 之前，leader 发生故障，那么会造成数据重复。
+
+0.11 版本的Kafka，引入了一项重大特性：幂等性。所谓的幂等性就是指 Producer 不论向 Server 发送多少次重复数据，Server 端都只会持久化一条。幂等性结合 At Least Once 语 义，就构成了Kafka 的 Exactly Once 语义。即： 
+$$
+At Least Once + 幂等性 = Exactly Once
+$$
+
+> 要启用幂等性，只需要将 Producer 的参数中 enable.idompotence 设置为true即可。Kafka的幂等性实现其实就是将原来下游需要做的去重放在了数据上游。开启幂等性的Producer在 初始化的时候会被分配一个 PID，发往同一Partition的消息会附带 Sequence Number。而 Broker 端会对<PID, Partition, SeqNumber>做缓存，当具有相同主键的消息提交时，Broker 只会持久化一条。 但是 PID重启就会变化，同时不同的 Partition 也具有不同主键，所以幂等性无法保证跨分区跨会话的 Exactly Once。
+
+### 2.2.4 故障处理细节
+
+![image-20210206001039206](https://gitee.com/adambang/pic/raw/master/20210206001039.png)
+
+**LEO**：指的是每个副本最大的 offset；
+
+**HW**：指的是消费者能见到的最大的 offset，ISR队列中最小的LEO。 
+
+1. follower 故障 follower 发生故障后会被临时踢出 ISR，待该 follower 恢复后，follower 会读取本地磁盘
+   记录的上次的HW，并将 log 文件高于HW的部分截取掉，从HW开始向 leader 进行同步。等该 follower 的LEO大于等于该 Partition 的HW，即 follower 追上 leader 之后，就可以重新加入ISR了。
+
+2. leader 故障 leader 发生故障之后，会从 ISR 中选出一个新的 leader，之后，为保证多个副本之间的数据一致性，其余的 follower 会先将各自的 log 文件高于HW的部分截掉，然后从新的 leader 同步数据。 
+
+<u>注意：这只能保证副本之间的数据一致性，并不能保证数据不丢失或者不重复。</u>
+
+# 三. Kafka 消费者
+
+consumer 采用 pull（拉）模式从 broker 中读取数据。pull 模式则可以根据 consumer 的消费能力以适当的速率消费消息。 
+
+pull 模式不足之处是，如果 kafka 没有数据，消费者可能会陷入循环中，一直返回空数据。针对这一点，Kafka 的消费者在消费数据时会传入一个时长参数 timeout，如果当前没有 数据可供消费，consumer 会等待一段时间之后再返回，这段时长即为 timeout。
+
+## 3.1 分区分配策略
+
+一个 consumer group 中有多个 consumer，一个 topic 有多个 partition，所以必然会涉及到 partition 的分配问题，即确定那个 partition 由哪个 consumer 来消费。 Kafka 有两种分配策略，一是 RoundRobin，一是Range。
+
+## 3.2 offset 的维护
+
+由于 consumer 在消费过程中可能会出现断电宕机等故障，consumer 恢复后，需要从故障前的位置的继续消费，所以 consumer 需要实时记录自己消费到了哪个offset，以便故障恢复后继续消费。
+
+Kafka 0.9 版本之前，consumer 默认将 offset 保存在 Zookeeper 中，从 0.9 版本开始，consumer 默认将 offset 保存在Kafka 一个内置的 topic 中，该 topic 为__consumer_offsets。
